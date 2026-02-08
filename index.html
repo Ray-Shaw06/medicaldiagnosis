@@ -54,6 +54,9 @@
 
       <h3>Best Match(es):</h3>
       <ul id="bestMatches"></ul>
+
+      <h3>Treatment Steps:</h3>
+      <div id="treatmentSection"></div>
     </div>
 
     <!-- Disclaimer -->
@@ -63,256 +66,116 @@
   </div>
 
   <script>
-    // -----------------------------
-    // DATA: 20 COMMON SYMPTOMS
-    // -----------------------------
-    // This list is used to generate checkboxes automatically.
+    // Simple, easy-to-read script. Keeps the same features:
+    // - builds checkboxes from a list of symptoms
+    // - scores illnesses by matching symptoms
+    // - shows matches, best matches, and treatment steps
+
     const SYMPTOMS = [
-      "Fever",
-      "Cough",
-      "Sore throat",
-      "Runny or stuffy nose",
-      "Sneezing",
-      "Shortness of breath",
-      "Chest pain",
-      "Fatigue",
-      "Headache",
-      "Body aches",
-      "Nausea",
-      "Vomiting",
-      "Diarrhea",
-      "Stomach pain",
-      "Loss of appetite",
-      "Dizziness",
-      "Rash",
-      "Itchy or watery eyes",
-      "Loss of taste or smell",
-      "Chills"
+      "Fever","Cough","Sore throat","Runny or stuffy nose",
+      "Sneezing","Shortness of breath","Chest pain","Fatigue",
+      "Headache","Body aches","Nausea","Vomiting","Diarrhea",
+      "Stomach pain","Loss of appetite","Dizziness","Rash",
+      "Itchy or watery eyes","Loss of taste or smell","Chills"
     ];
 
-    // ----------------------------------
-    // DATA: ILLNESS DATABASE (SIMPLIFIED)
-    // ----------------------------------
-    // Each illness has a list of symptoms.
-    // The program compares what the user selected to these lists.
     const ILLNESSES = {
-      "Common Cold": [
-        "Cough", "Sore throat", "Runny or stuffy nose",
-        "Sneezing", "Fatigue", "Headache"
-      ],
-      "Flu": [
-        "Fever", "Chills", "Body aches",
-        "Fatigue", "Cough", "Headache"
-      ],
-      "Allergies": [
-        "Sneezing", "Runny or stuffy nose",
-        "Itchy or watery eyes", "Sore throat"
-      ],
-      "Stomach Bug": [
-        "Nausea", "Vomiting", "Diarrhea",
-        "Stomach pain", "Loss of appetite", "Fever"
-      ],
-      "COVID-like Illness": [
-        "Fever", "Cough", "Fatigue",
-        "Loss of taste or smell", "Shortness of breath", "Headache"
-      ]
+      "Common Cold": ["Cough","Sore throat","Runny or stuffy nose","Sneezing","Fatigue","Headache"],
+      "Flu": ["Fever","Chills","Body aches","Fatigue","Cough","Headache"],
+      "Allergies": ["Sneezing","Runny or stuffy nose","Itchy or watery eyes","Sore throat"],
+      "Stomach Bug": ["Nausea","Vomiting","Diarrhea","Stomach pain","Loss of appetite","Fever"],
+      "COVID-like Illness": ["Fever","Cough","Fatigue","Loss of taste or smell","Shortness of breath","Headache"]
     };
 
-    // Grab important parts of the page so we can edit them using JavaScript
+    const TREATMENTS = {
+      "Common Cold": ["Rest and sleep","Drink fluids","OTC pain relievers","Saline nasal drops","See provider if worse"],
+      "Flu": ["Stay home and rest","Hydrate","Talk to provider about antivirals if high-risk","Seek care for breathing problems"],
+      "Allergies": ["Avoid triggers","OTC antihistamines","Nasal rinses or sprays","See an allergist if needed"],
+      "Stomach Bug": ["Stay hydrated","Start with bland foods","Rest","Seek care for dehydration"],
+      "COVID-like Illness": ["Isolate","Test if available","Rest and hydrate","Seek urgent care for severe symptoms"]
+    };
+
+    // DOM refs
     const symptomListDiv = document.getElementById("symptomList");
     const resultsSection = document.getElementById("resultsSection");
     const chosenSymptomsDiv = document.getElementById("chosenSymptoms");
     const matchesAreaDiv = document.getElementById("matchesArea");
     const bestMatchesUl = document.getElementById("bestMatches");
-
+    const treatmentSectionDiv = document.getElementById("treatmentSection");
     const submitBtn = document.getElementById("submitBtn");
     const clearBtn = document.getElementById("clearBtn");
 
-    // -----------------------------
-    // STEP 1: BUILD CHECKBOX LIST
-    // -----------------------------
-    // This makes a checkbox for every symptom automatically.
+    // build checkboxes
     function buildCheckboxes() {
       symptomListDiv.innerHTML = "";
-
-      SYMPTOMS.forEach((symptom, index) => {
-        // Create a label so users can click text to toggle checkbox
-        const label = document.createElement("label");
-        label.className = "symptom";
-
-        // Create the checkbox
-        const checkbox = document.createElement("input");
-        checkbox.type = "checkbox";
-        checkbox.value = symptom;
-        checkbox.id = "symptom_" + index;
-
-        // Put checkbox + text into the label (text in its own span for styling)
-        label.appendChild(checkbox);
-        const spanText = document.createElement("span");
-        spanText.className = "symptomText";
-        spanText.textContent = symptom;
-        label.appendChild(spanText);
-
-        // Add it to the page
-        symptomListDiv.appendChild(label);
-      });
+      for (let i = 0; i < SYMPTOMS.length; i++) {
+        const label = document.createElement('label');
+        label.className = 'symptom';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox'; cb.value = SYMPTOMS[i]; cb.id = 'symptom_' + i;
+        const span = document.createElement('span'); span.className = 'symptomText'; span.textContent = SYMPTOMS[i];
+        label.appendChild(cb); label.appendChild(span); symptomListDiv.appendChild(label);
+      }
     }
 
-    // -----------------------------
-    // STEP 2: GET USER SELECTIONS
-    // -----------------------------
-    // This returns an array (list) of symptom strings the user checked.
     function getChosenSymptoms() {
       const chosen = [];
-      const checkboxes = symptomListDiv.querySelectorAll("input[type='checkbox']");
-
-      checkboxes.forEach(cb => {
-        if (cb.checked) chosen.push(cb.value);
-      });
-
+      const boxes = symptomListDiv.querySelectorAll("input[type='checkbox']");
+      boxes.forEach(b => { if (b.checked) chosen.push(b.value); });
       return chosen;
     }
 
-    // -----------------------------------------
-    // STEP 3: SCORE ILLNESSES BASED ON MATCHING
-    // -----------------------------------------
     function scoreIllnesses(chosen) {
-      const results = [];
-      let bestScore = 0;
-      let bestList = [];
-
-      // Go through each illness in the database
-      for (const illnessName in ILLNESSES) {
-        const illnessSymptoms = ILLNESSES[illnessName];
-        let matchCount = 0;
-
-        // Count how many symptoms overlap
-        chosen.forEach(sym => {
-          if (illnessSymptoms.includes(sym)) matchCount++;
-        });
-
-        // Percent match is: matches / total symptoms for that illness
-        const percent = (matchCount / illnessSymptoms.length) * 100;
-
-        // Only keep illnesses with at least 1 match
-        if (matchCount > 0) {
-          results.push({
-            name: illnessName,
-            matchCount: matchCount,
-            total: illnessSymptoms.length,
-            percent: Math.round(percent * 10) / 10 // round to 1 decimal place
-          });
-        }
-
-        // Track best match (ties allowed)
-        if (matchCount > bestScore) {
-          bestScore = matchCount;
-          bestList = matchCount === 0 ? [] : [illnessName];
-        } else if (matchCount === bestScore && matchCount !== 0) {
-          bestList.push(illnessName);
-        }
+      const results = []; let bestScore = 0; let bestList = [];
+      for (const name in ILLNESSES) {
+        const symptoms = ILLNESSES[name];
+        let match = 0; chosen.forEach(c => { if (symptoms.indexOf(c) !== -1) match++; });
+        if (match > 0) results.push({ name, matchCount: match, total: symptoms.length, percent: Math.round((match / symptoms.length) * 1000) / 10 });
+        if (match > bestScore) { bestScore = match; bestList = [name]; }
+        else if (match === bestScore && match !== 0) bestList.push(name);
       }
-
-      // Sort results best-to-worst
-      results.sort((a, b) => {
-        // Sort by matchCount first, then percent
-        if (b.matchCount !== a.matchCount) return b.matchCount - a.matchCount;
-        return b.percent - a.percent;
-      });
-
+      results.sort((a, b) => b.matchCount - a.matchCount || b.percent - a.percent);
       return { results, bestList };
     }
 
-    // -----------------------------
-    // STEP 4: DISPLAY RESULTS
-    // -----------------------------
     function showResults(chosen, results, bestList) {
-      // Show the results section
-      resultsSection.classList.remove("hidden");
+      resultsSection.classList.remove('hidden');
+      chosenSymptomsDiv.innerHTML = '';
+      chosen.forEach(s => { const span = document.createElement('span'); span.className = 'pill'; span.textContent = s; chosenSymptomsDiv.appendChild(span); });
 
-      // Show chosen symptoms as little "pills"
-      chosenSymptomsDiv.innerHTML = "";
-      chosen.forEach(sym => {
-        const span = document.createElement("span");
-        span.className = "pill";
-        span.textContent = sym;
-        chosenSymptomsDiv.appendChild(span);
-      });
-
-      // Show matches in a table (or message if none)
-      if (results.length === 0) {
-        matchesAreaDiv.innerHTML = "<p>No matches found in the illness list.</p>";
-      } else {
-        let tableHtml = `
-          <table>
-            <tr>
-              <th>Illness</th>
-              <th>Matches</th>
-              <th>Percent</th>
-            </tr>
-        `;
-
-        results.forEach(r => {
-          tableHtml += `
-            <tr>
-              <td>${r.name}</td>
-              <td>${r.matchCount}/${r.total}</td>
-              <td>${r.percent}%</td>
-            </tr>
-          `;
-        });
-
-        tableHtml += "</table>";
-        matchesAreaDiv.innerHTML = tableHtml;
+      if (results.length === 0) matchesAreaDiv.innerHTML = '<p>No matches found in the illness list.</p>';
+      else {
+        let html = '<table><tr><th>Illness</th><th>Matches</th><th>Percent</th></tr>';
+        results.forEach(r => { html += `<tr><td>${r.name}</td><td>${r.matchCount}/${r.total}</td><td>${r.percent}%</td></tr>`; });
+        html += '</table>'; matchesAreaDiv.innerHTML = html;
       }
 
-      // Show best matches (tie-safe)
-      bestMatchesUl.innerHTML = "";
-      if (bestList.length === 0) {
-        const li = document.createElement("li");
-        li.textContent = "No best match found.";
-        bestMatchesUl.appendChild(li);
-      } else {
-        bestList.forEach(name => {
-          const li = document.createElement("li");
-          li.textContent = name;
-          bestMatchesUl.appendChild(li);
+      bestMatchesUl.innerHTML = '';
+      if (bestList.length === 0) { const li = document.createElement('li'); li.textContent = 'No best match found.'; bestMatchesUl.appendChild(li); }
+      else bestList.forEach(n => { const li = document.createElement('li'); li.textContent = n; bestMatchesUl.appendChild(li); });
+
+      treatmentSectionDiv.innerHTML = '';
+      if (bestList.length === 0) treatmentSectionDiv.innerHTML = '<p>No treatment guidance available.</p>';
+      else {
+        bestList.forEach(n => {
+          const h = document.createElement('h4'); h.textContent = n; const ol = document.createElement('ol');
+          const steps = TREATMENTS[n] || ['No specific guidance available. Consult a healthcare provider.'];
+          steps.forEach(s => { const li = document.createElement('li'); li.textContent = s; ol.appendChild(li); });
+          treatmentSectionDiv.appendChild(h); treatmentSectionDiv.appendChild(ol);
         });
       }
     }
 
-    // -----------------------------
-    // BUTTON ACTIONS
-    // -----------------------------
-    submitBtn.addEventListener("click", () => {
-      const chosen = getChosenSymptoms();
-
-      // If user picked nothing, just alert them
-      if (chosen.length === 0) {
-        alert("Please select at least one symptom.");
-        return;
-      }
-
-      const scored = scoreIllnesses(chosen);
-      showResults(chosen, scored.results, scored.bestList);
-
-      // Scroll to results so it feels like a real website
-      resultsSection.scrollIntoView({ behavior: "smooth" });
+    submitBtn.addEventListener('click', () => {
+      const chosen = getChosenSymptoms(); if (chosen.length === 0) { alert('Please select at least one symptom.'); return; }
+      const scored = scoreIllnesses(chosen); showResults(chosen, scored.results, scored.bestList); resultsSection.scrollIntoView({ behavior: 'smooth' });
     });
 
-    clearBtn.addEventListener("click", () => {
-      // Uncheck all boxes
-      const checkboxes = symptomListDiv.querySelectorAll("input[type='checkbox']");
-      checkboxes.forEach(cb => cb.checked = false);
-
-      // Hide results
-      resultsSection.classList.add("hidden");
-      chosenSymptomsDiv.innerHTML = "";
-      matchesAreaDiv.innerHTML = "";
-      bestMatchesUl.innerHTML = "";
+    clearBtn.addEventListener('click', () => {
+      const boxes = symptomListDiv.querySelectorAll("input[type='checkbox']"); boxes.forEach(b => b.checked = false);
+      resultsSection.classList.add('hidden'); chosenSymptomsDiv.innerHTML = ''; matchesAreaDiv.innerHTML = ''; bestMatchesUl.innerHTML = ''; treatmentSectionDiv.innerHTML = '';
     });
 
-    // Build the page when it loads
     buildCheckboxes();
   </script>
 </body>
