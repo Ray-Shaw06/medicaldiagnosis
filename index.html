@@ -9,8 +9,11 @@
     /* Simple styling so it looks clean for a school project */
     body { font-family: Arial, sans-serif; margin: 24px; }
     .box { max-width: 780px; }
-    .symptoms { columns: 2; max-width: 780px; }
-    .symptom { margin: 6px 0; break-inside: avoid; }
+    .symptoms { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; max-width: 780px; }
+    .symptom { display: flex; align-items: center; gap: 8px; padding: 8px 10px; margin: 0; break-inside: avoid; border: 1px solid #eee; border-radius: 8px; background: #fafafa; }
+    .symptom:hover { background: #f4f7fb; border-color: #e0e6ef; }
+    .symptomText { flex: 1; }
+    input[type="checkbox"] { width: 18px; height: 18px; flex: 0 0 18px; margin: 0; }
     button { padding: 10px 14px; margin-top: 12px; cursor: pointer; }
     .pill { display:inline-block; padding:6px 10px; margin:4px; border:1px solid #ccc; border-radius:999px; }
     table { border-collapse: collapse; width: 100%; margin-top: 14px; }
@@ -18,7 +21,7 @@
     th { background: #f3f3f3; text-align:left; }
     .disclaimer { margin-top: 16px; color: #444; }
     .hidden { display: none; }
-    @media (max-width: 700px) { .symptoms { columns: 1; } }
+    @media (max-width: 700px) { .symptoms { grid-template-columns: 1fr; } }
   </style>
 </head>
 
@@ -143,9 +146,12 @@
         checkbox.value = symptom;
         checkbox.id = "symptom_" + index;
 
-        // Put checkbox + text into the label
+        // Put checkbox + text into the label (text in its own span for styling)
         label.appendChild(checkbox);
-        label.appendChild(document.createTextNode(" " + symptom));
+        const spanText = document.createElement("span");
+        spanText.className = "symptomText";
+        spanText.textContent = symptom;
+        label.appendChild(spanText);
 
         // Add it to the page
         symptomListDiv.appendChild(label);
