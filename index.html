@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Symptom Checker (School Project)</title>
+
+  <style>
+    /* Simple styling so it looks clean for a school project */
+    body { font-family: Arial, sans-serif; margin: 24px; }
+    .box { max-width: 780px; }
+    .symptoms { columns: 2; max-width: 780px; }
+    .symptom { margin: 6px 0; break-inside: avoid; }
+    button { padding: 10px 14px; margin-top: 12px; cursor: pointer; }
+    .pill { display:inline-block; padding:6px 10px; margin:4px; border:1px solid #ccc; border-radius:999px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 14px; }
+    th, td { border: 1px solid #ddd; padding: 10px; }
+    th { background: #f3f3f3; text-align:left; }
+    .disclaimer { margin-top: 16px; color: #444; }
+    .hidden { display: none; }
+    @media (max-width: 700px) { .symptoms { columns: 1; } }
+  </style>
+</head>
+
+<body>
+  <div class="box">
+    <h1>Symptom Checker (School Project)</h1>
+
+    <!-- Quick explanation for the user -->
+    <p>
+      Check the symptoms that apply to you, then click <b>Submit</b>.
+      This program finds possible matches based on symptom overlap.
+    </p>
+
+    <!-- Symptoms will be generated here by JavaScript -->
+    <div id="symptomList" class="symptoms"></div>
+
+    <!-- Buttons -->
+    <button id="submitBtn">Submit</button>
+    <button id="clearBtn" type="button">Clear All</button>
+
+    <!-- Results section -->
+    <div id="resultsSection" class="hidden">
+      <h2>Results</h2>
+
+      <h3>Selected Symptoms:</h3>
+      <div id="chosenSymptoms"></div>
+
+      <h3>Matches:</h3>
+      <div id="matchesArea"></div>
+
+      <h3>Best Match(es):</h3>
+      <ul id="bestMatches"></ul>
+    </div>
+
+    <!-- Disclaimer -->
+    <div class="disclaimer">
+      <b>Disclaimer:</b> This is for an educational project only and is not medical advice.
+    </div>
+  </div>
+
+  <script>
+    // -----------------------------
+    // DATA: 20 COMMON SYMPTOMS
+    // -----------------------------
+    // This list is used to generate checkboxes automatically.
+    const SYMPTOMS = [
+      "Fever",
+      "Cough",
+      "Sore throat",
+      "Runny or stuffy nose",
+      "Sneezing",
+      "Shortness of breath",
+      "Chest pain",
+      "Fatigue",
+      "Headache",
+      "Body aches",
+      "Nausea",
+      "Vomiting",
+      "Diarrhea",
+      "Stomach pain",
+      "Loss of appetite",
+      "Dizziness",
+      "Rash",
+      "Itchy or watery eyes",
+      "Loss of taste or smell",
+      "Chills"
+    ];
+
+    // ----------------------------------
+    // DATA: ILLNESS DATABASE (SIMPLIFIED)
+    // ----------------------------------
+    // Each illness has a list of symptoms.
+    // The program compares what the user selected to these lists.
+    const ILLNESSES = {
+      "Common Cold": [
+        "Cough", "Sore throat", "Runny or stuffy nose",
+        "Sneezing", "Fatigue", "Headache"
+      ],
+      "Flu": [
+        "Fever", "Chills", "Body aches",
+        "Fatigue", "Cough", "Headache"
+      ],
+      "Allergies": [
+        "Sneezing", "Runny or stuffy nose",
+        "Itchy or watery eyes", "Sore throat"
+      ],
+      "Stomach Bug": [
+        "Nausea", "Vomiting", "Diarrhea",
+        "Stomach pain", "Loss of appetite", "Fever"
+      ],
+      "COVID-like Illness": [
+        "Fever", "Cough", "Fatigue",
+        "Loss of taste or smell", "Shortness of breath", "Headache"
+      ]
+    };
+
+    // Grab important parts of the page so we can edit them using JavaScript
+    const symptomListDiv = document.getElementById("symptomList");
+    const resultsSection = document.getElementById("resultsSection");
+    const chosenSymptomsDiv = document.getElementById("chosenSymptoms");
+    const matchesAreaDiv = document.getElementById("matchesArea");
+    const bestMatchesUl = document.getElementById("bestMatches");
+
+    const submitBtn = document.getElementById("submitBtn");
+    const clearBtn = document.getElementById("clearBtn");
+
+    // -----------------------------
+    // STEP 1: BUILD CHECKBOX LIST
+    // -----------------------------
+    // This makes a checkbox for every symptom automatically.
+    function buildCheckboxes() {
+      symptomListDiv.innerHTML = "";
+
+      SYMPTOMS.forEach((symptom, index) => {
+        // Create a label so users can click text to toggle checkbox
+        const label = document.createElement("label");
+        label.className = "symptom";
+
+        // Create the checkbox
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = symptom;
+        checkbox.id = "symptom_" + index;
+
+        // Put checkbox + text into the label
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(" " + symptom));
+
+        // Add it to the page
+        symptomListDiv.appendChild(label);
+      });
+    }
+
+    // -----------------------------
+    // STEP 2: GET USER SELECTIONS
+    // -----------------------------
+    // This returns an array (list) of symptom strings the user checked.
+    function getChosenSymptoms() {
+      const chosen = [];
+      const checkboxes = symptomListDiv.querySelectorAll("input[type='checkbox']");
+
+      checkboxes.forEach(cb => {
+        if (cb.checked) chosen.push(cb.value);
+      });
+
+      return chosen;
+    }
+
+    // -----------------------------------------
+    // STEP 3: SCORE ILLNESSES BASED ON MATCHING
+    // -----------------------------------------
+    function scoreIllnesses(chosen) {
+      const results = [];
+      let bestScore = 0;
+      let bestList = [];
+
+      // Go through each illness in the database
+      for (const illnessName in ILLNESSES) {
+        const illnessSymptoms = ILLNESSES[illnessName];
+        let matchCount = 0;
+
+        // Count how many symptoms overlap
+        chosen.forEach(sym => {
+          if (illnessSymptoms.includes(sym)) matchCount++;
+        });
+
+        // Percent match is: matches / total symptoms for that illness
+        const percent = (matchCount / illnessSymptoms.length) * 100;
+
+        // Only keep illnesses with at least 1 match
+        if (matchCount > 0) {
+          results.push({
+            name: illnessName,
+            matchCount: matchCount,
+            total: illnessSymptoms.length,
+            percent: Math.round(percent * 10) / 10 // round to 1 decimal place
+          });
+        }
+
+        // Track best match (ties allowed)
+        if (matchCount > bestScore) {
+          bestScore = matchCount;
+          bestList = matchCount === 0 ? [] : [illnessName];
+        } else if (matchCount === bestScore && matchCount !== 0) {
+          bestList.push(illnessName);
+        }
+      }
+
+      // Sort results best-to-worst
+      results.sort((a, b) => {
+        // Sort by matchCount first, then percent
+        if (b.matchCount !== a.matchCount) return b.matchCount - a.matchCount;
+        return b.percent - a.percent;
+      });
+
+      return { results, bestList };
+    }
+
+    // -----------------------------
+    // STEP 4: DISPLAY RESULTS
+    // -----------------------------
+    function showResults(chosen, results, bestList) {
+      // Show the results section
+      resultsSection.classList.remove("hidden");
+
+      // Show chosen symptoms as little "pills"
+      chosenSymptomsDiv.innerHTML = "";
+      chosen.forEach(sym => {
+        const span = document.createElement("span");
+        span.className = "pill";
+        span.textContent = sym;
+        chosenSymptomsDiv.appendChild(span);
+      });
+
+      // Show matches in a table (or message if none)
+      if (results.length === 0) {
+        matchesAreaDiv.innerHTML = "<p>No matches found in the illness list.</p>";
+      } else {
+        let tableHtml = `
+          <table>
+            <tr>
+              <th>Illness</th>
+              <th>Matches</th>
+              <th>Percent</th>
+            </tr>
+        `;
+
+        results.forEach(r => {
+          tableHtml += `
+            <tr>
+              <td>${r.name}</td>
+              <td>${r.matchCount}/${r.total}</td>
+              <td>${r.percent}%</td>
+            </tr>
+          `;
+        });
+
+        tableHtml += "</table>";
+        matchesAreaDiv.innerHTML = tableHtml;
+      }
+
+      // Show best matches (tie-safe)
+      bestMatchesUl.innerHTML = "";
+      if (bestList.length === 0) {
+        const li = document.createElement("li");
+        li.textContent = "No best match found.";
+        bestMatchesUl.appendChild(li);
+      } else {
+        bestList.forEach(name => {
+          const li = document.createElement("li");
+          li.textContent = name;
+          bestMatchesUl.appendChild(li);
+        });
+      }
+    }
+
+    // -----------------------------
+    // BUTTON ACTIONS
+    // -----------------------------
+    submitBtn.addEventListener("click", () => {
+      const chosen = getChosenSymptoms();
+
+      // If user picked nothing, just alert them
+      if (chosen.length === 0) {
+        alert("Please select at least one symptom.");
+        return;
+      }
+
+      const scored = scoreIllnesses(chosen);
+      showResults(chosen, scored.results, scored.bestList);
+
+      // Scroll to results so it feels like a real website
+      resultsSection.scrollIntoView({ behavior: "smooth" });
+    });
+
+    clearBtn.addEventListener("click", () => {
+      // Uncheck all boxes
+      const checkboxes = symptomListDiv.querySelectorAll("input[type='checkbox']");
+      checkboxes.forEach(cb => cb.checked = false);
+
+      // Hide results
+      resultsSection.classList.add("hidden");
+      chosenSymptomsDiv.innerHTML = "";
+      matchesAreaDiv.innerHTML = "";
+      bestMatchesUl.innerHTML = "";
+    });
+
+    // Build the page when it loads
+    buildCheckboxes();
+  </script>
+</body>
+</html>
